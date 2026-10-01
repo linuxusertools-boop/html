@@ -1,0 +1,504 @@
+
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <title>KEV-SYSTEM // Fullscreen AI Core HUD</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Futuristic Fonts: Orbitron & Share Tech Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <!-- PWA Manifest inline via Data URI -->
+  <link rel="manifest" href="data:application/manifest+json;utf8,{%22name%22:%22KEV-SYSTEM%22,%22short_name%22:%22KEV-SYS%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23000000%22,%22theme_color%22:%22%23000000%22}">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            orbitron: ['Orbitron', 'sans-serif'],
+            mono: ['Share Tech Mono', 'monospace'],
+          },
+          colors: {
+            hud: {
+              black: '#000000',
+              dark: '#0a0a0a',
+              panel: '#111111',
+              border: '#262626',
+              light: '#ffffff',
+              dim: '#888888',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body, html {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Sci-Fi Grid Background Pattern */
+    .hud-grid {
+      background-size: 30px 30px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+
+    /* CRT Scanlines Overlay */
+    .scanlines {
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0) 50%,
+        rgba(0, 0, 0, 0.5) 50%,
+        rgba(0, 0, 0, 0.5)
+      );
+      background-size: 100% 4px;
+    }
+
+    /* Sci-Fi Glows & Borders */
+    .glow-text {
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 24px rgba(255, 255, 255, 0.3);
+    }
+
+    .glow-box {
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.15), inset 0 0 15px rgba(255, 255, 255, 0.05);
+    }
+
+    /* Corner HUD bracket lines */
+    .hud-corner-tl { border-top: 2px solid #ffffff; border-left: 2px solid #ffffff; }
+    .hud-corner-tr { border-top: 2px solid #ffffff; border-right: 2px solid #ffffff; }
+    .hud-corner-bl { border-bottom: 2px solid #ffffff; border-left: 2px solid #ffffff; }
+    .hud-corner-br { border-bottom: 2px solid #ffffff; border-right: 2px solid #ffffff; }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #ffffff; }
+  </style>
+</head>
+<body class="w-screen h-screen relative flex flex-col justify-between p-4 sm:p-6 hud-grid">
+
+  <!-- Scanline Overlay -->
+  <div class="pointer-events-none absolute inset-0 scanlines opacity-50 z-40"></div>
+
+  <!-- Top Navigation / System Bar -->
+  <header class="w-full flex justify-between items-center border-b border-neutral-800 pb-3 z-30 relative">
+    <div class="flex items-center space-x-3">
+      <div class="w-2.5 h-2.5 bg-white rounded-full animate-ping"></div>
+      <span class="text-xs tracking-widest text-neutral-400 font-mono">SYS.APP // STANDALONE HUD</span>
+    </div>
+
+    <!-- Live Clock & Uptime Counter -->
+    <div class="flex items-center space-x-4 sm:space-x-8 text-xs text-neutral-400">
+      <div class="hidden md:block">UPTIME: <span id="uptimeDisplay" class="text-white font-bold">00:00:00</span></div>
+      <div>SYS TIME: <span id="clockDisplay" class="text-white font-bold">00:00:00</span></div>
+    </div>
+
+    <!-- Status & Toggle Buttons -->
+    <div class="flex items-center space-x-2">
+      <button id="wakeLockBtn" title="Toggle Keep-Alive Screen Lock" class="flex items-center space-x-2 bg-neutral-900 border border-neutral-700 hover:border-white text-white px-3 py-1 rounded transition duration-200 text-xs">
+        <span id="statusDot" class="w-2 h-2 rounded-full bg-neutral-600"></span>
+        <span id="wakeLockText" class="hidden sm:inline">KEEP-ALIVE: INACTIVE</span>
+      </button>
+
+      <button id="fullscreenToggleBtn" class="bg-white text-black font-bold px-3 py-1 rounded hover:bg-neutral-200 transition duration-200 text-xs flex items-center space-x-1">
+        <svg id="fullscreenIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+        <span id="fullscreenBtnLabel">FULLSCREEN</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Interactive Section -->
+  <main class="flex-1 flex flex-col items-center justify-center relative z-20 my-2">
+    
+    <!-- Outer Brackets Frame -->
+    <div class="relative p-6 sm:p-10 flex flex-col items-center justify-center">
+      <div class="absolute top-0 left-0 w-6 h-6 hud-corner-tl"></div>
+      <div class="absolute top-0 right-0 w-6 h-6 hud-corner-tr"></div>
+      <div class="absolute bottom-0 left-0 w-6 h-6 hud-corner-bl"></div>
+      <div class="absolute bottom-0 right-0 w-6 h-6 hud-corner-br"></div>
+
+      <!-- Canvas for AI Rotating Core -->
+      <div class="relative flex items-center justify-center">
+        <canvas id="coreCanvas" class="w-[260px] h-[260px] sm:w-[360px] sm:h-[360px] md:w-[420px] md:h-[420px]"></canvas>
+
+        <!-- Inner Pulse Ring -->
+        <div class="absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full border border-white/60 flex items-center justify-center bg-black/80 backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.5)]">
+          <div class="w-3 h-3 sm:w-5 sm:h-5 bg-white rounded-full animate-ping"></div>
+        </div>
+      </div>
+
+      <!-- Center Title Display -->
+      <div class="mt-4 text-center z-10">
+        <h1 class="font-orbitron text-4xl sm:text-6xl md:text-7xl font-black tracking-widest text-white glow-text">
+          KEV-SYSTEM
+        </h1>
+        <p id="subStatusText" class="text-[10px] sm:text-xs text-neutral-400 tracking-[0.3em] mt-2 uppercase font-mono">
+          STANDALONE APP MODE // SCREEN KEEP-ALIVE PRESERVED
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Status Footer HUD -->
+  <footer class="w-full border-t border-neutral-800 pt-3 z-30 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-500 gap-2">
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-1">
+        <span class="text-neutral-500">CORE:</span>
+        <span id="coreState" class="text-white font-mono uppercase font-bold">ONLINE</span>
+      </div>
+      <div class="flex items-center space-x-1">
+        <span class="text-neutral-500">CPU LOAD:</span>
+        <span id="cpuUsage" class="text-white font-mono">14%</span>
+      </div>
+      <div class="flex items-center space-x-1">
+        <span class="text-neutral-500">MEM:</span>
+        <span id="memUsage" class="text-white font-mono">3.8 GB</span>
+      </div>
+    </div>
+
+    <!-- Audio / Signal Spectrum Wave Simulator -->
+    <div class="flex items-end space-x-1 h-5" id="waveform">
+      <!-- Bars dynamically generated by JS -->
+    </div>
+
+    <div class="text-right text-[10px] sm:text-xs text-neutral-400">
+      <span class="inline-block w-1.5 h-1.5 bg-white rounded-full mr-1"></span> ANTI-SLEEP ENGINE ACTIVE
+    </div>
+  </footer>
+
+  <!-- Initial Fullscreen Launcher Overlay -->
+  <div id="splashOverlay" class="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center transition-opacity duration-500">
+    <div class="max-w-md w-full border border-neutral-700 bg-neutral-950 p-8 rounded-lg glow-box relative">
+      <div class="absolute top-2 left-2 w-3 h-3 hud-corner-tl"></div>
+      <div class="absolute top-2 right-2 w-3 h-3 hud-corner-tr"></div>
+      <div class="absolute bottom-2 left-2 w-3 h-3 hud-corner-bl"></div>
+      <div class="absolute bottom-2 right-2 w-3 h-3 hud-corner-br"></div>
+
+      <div class="w-12 h-12 rounded-full border-2 border-white flex items-center justify-center mx-auto mb-4 animate-pulse">
+        <div class="w-4 h-4 bg-white rounded-full"></div>
+      </div>
+
+      <h2 class="font-orbitron text-2xl font-black text-white tracking-wider mb-2">KEV-SYSTEM</h2>
+      <p class="text-xs text-neutral-400 font-mono mb-6 leading-relaxed">
+        Sistem interface monokrom canggih. Klik tombol di bawah untuk masuk ke mode <strong class="text-white">FULLSCREEN APP</strong> & otomatis mengaktifkan <strong class="text-white">Anti-Sleep (Keep-Alive)</strong>.
+      </p>
+
+      <button id="launchAppBtn" class="w-full py-3 bg-white text-black font-bold font-orbitron tracking-widest text-sm rounded hover:bg-neutral-200 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.4)]">
+        LAUNCH FULLSCREEN APP
+      </button>
+      
+      <p class="text-[10px] text-neutral-600 mt-4">PRESS ESC TO EXIT FULLSCREEN AT ANY TIME</p>
+    </div>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toast" class="fixed bottom-12 left-1/2 -translate-x-1/2 bg-neutral-900 border border-neutral-600 text-white px-5 py-2 rounded-full text-xs opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center space-x-2 shadow-lg">
+    <span id="toastDot" class="w-2 h-2 rounded-full bg-white"></span>
+    <span id="toastMsg">Sistem Siap.</span>
+  </div>
+
+  <script>
+    /* ========================================================
+       1. AI Core Canvas Rendering Engine
+       ======================================================== */
+    const canvas = document.getElementById('coreCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    let angle = 0;
+    const particles = [];
+    for (let i = 0; i < 35; i++) {
+      particles.push({
+        radius: Math.random() * 110 + 50,
+        angle: Math.random() * Math.PI * 2,
+        speed: (Math.random() * 0.02 + 0.005) * (Math.random() > 0.5 ? 1 : -1),
+        size: Math.random() * 2 + 1,
+        alpha: Math.random() * 0.8 + 0.2
+      });
+    }
+
+    function renderCore() {
+      const w = canvas.getBoundingClientRect().width;
+      const h = canvas.getBoundingClientRect().height;
+      const cx = w / 2;
+      const cy = h / 2;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Outer Ring 1 - Dashed Outer HUD
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle * 0.4);
+      ctx.beginPath();
+      ctx.arc(0, 0, 120, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([20, 10, 5, 10]);
+      ctx.stroke();
+      ctx.restore();
+
+      // Outer Ring 2 - Tech Segments
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-angle * 0.6);
+      ctx.beginPath();
+      ctx.arc(0, 0, 100, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([40, 15, 10, 15]);
+      ctx.stroke();
+      ctx.restore();
+
+      // Inner Rotating Concentric Circles
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle * 0.8);
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        const r = 65 + i * 10;
+        ctx.arc(0, 0, r, i, i + Math.PI * 0.7);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 - i * 0.1})`;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Equalizer Wave Nodes Ring
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-angle * 1.2);
+      const segs = 20;
+      for (let i = 0; i < segs; i++) {
+        const rad = (Math.PI * 2 / segs) * i;
+        const wave = Math.sin(angle * 5 + i) * 6 + 10;
+        const x1 = Math.cos(rad) * 45;
+        const y1 = Math.sin(rad) * 45;
+        const x2 = Math.cos(rad) * (45 + wave);
+        const y2 = Math.sin(rad) * (45 + wave);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Orbiting Glowing Particles
+      particles.forEach(p => {
+        p.angle += p.speed;
+        const px = cx + Math.cos(p.angle) * p.radius;
+        const py = cy + Math.sin(p.angle) * p.radius;
+
+        ctx.beginPath();
+        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+        ctx.shadowColor = 'white';
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      angle += 0.01;
+      requestAnimationFrame(renderCore);
+    }
+
+    /* ========================================================
+       2. Fullscreen API Handling
+       ======================================================== */
+    const fullscreenToggleBtn = document.getElementById('fullscreenToggleBtn');
+    const fullscreenBtnLabel = document.getElementById('fullscreenBtnLabel');
+    const splashOverlay = document.getElementById('splashOverlay');
+    const launchAppBtn = document.getElementById('launchAppBtn');
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        // Request Fullscreen
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) { /* Safari */
+          docEl.webkitRequestFullscreen();
+        }
+      } else {
+        // Exit Fullscreen
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+      }
+    }
+
+    function updateFullscreenUI() {
+      const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (isFullscreen) {
+        fullscreenBtnLabel.textContent = 'EXIT FULLSCREEN';
+        splashOverlay.classList.add('opacity-0', 'pointer-events-none');
+      } else {
+        fullscreenBtnLabel.textContent = 'FULLSCREEN';
+      }
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
+    fullscreenToggleBtn.addEventListener('click', toggleFullscreen);
+
+    /* ========================================================
+       3. Screen Wake Lock API (Anti-Sleep Keep-Alive)
+       ======================================================== */
+    let wakeLock = null;
+    const wakeLockBtn = document.getElementById('wakeLockBtn');
+    const statusDot = document.getElementById('statusDot');
+    const wakeLockText = document.getElementById('wakeLockText');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+    const toastDot = document.getElementById('toastDot');
+
+    function showToast(msg, isSuccess = true) {
+      toastMsg.textContent = msg;
+      toastDot.className = `w-2 h-2 rounded-full ${isSuccess ? 'bg-white shadow-[0_0_8px_#fff]' : 'bg-neutral-500'}`;
+      toast.classList.remove('opacity-0');
+      setTimeout(() => toast.classList.add('opacity-0'), 3000);
+    }
+
+    async function enableWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          statusDot.className = 'w-2 h-2 rounded-full bg-white shadow-[0_0_8px_#ffffff] animate-pulse';
+          wakeLockText.textContent = 'KEEP-ALIVE: ACTIVE';
+          wakeLockBtn.classList.add('border-white', 'bg-neutral-800');
+          showToast('Keep-Alive Lock Active. Laptop won\'t sleep.');
+
+          wakeLock.addEventListener('release', () => {
+            wakeLock = null;
+            disableWakeLockUI();
+          });
+        } else {
+          showToast('Wake Lock API not supported in this browser.', false);
+        }
+      } catch (err) {
+        console.error('Wake Lock Error:', err);
+        showToast('Wake Lock Request Failed.', false);
+      }
+    }
+
+    function disableWakeLockUI() {
+      statusDot.className = 'w-2 h-2 rounded-full bg-neutral-600';
+      wakeLockText.textContent = 'KEEP-ALIVE: INACTIVE';
+      wakeLockBtn.classList.remove('border-white', 'bg-neutral-800');
+    }
+
+    wakeLockBtn.addEventListener('click', () => {
+      if (!wakeLock) {
+        enableWakeLock();
+      } else {
+        if (wakeLock) wakeLock.release();
+        wakeLock = null;
+        showToast('Keep-Alive Lock Deactivated.', false);
+      }
+    });
+
+    // Re-engage Lock on Visibility Switch
+    document.addEventListener('visibilitychange', async () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        await enableWakeLock();
+      }
+    });
+
+    // Launch App Fullscreen & Activate Keep-Alive
+    launchAppBtn.addEventListener('click', async () => {
+      toggleFullscreen();
+      await enableWakeLock();
+    });
+
+    /* ========================================================
+       4. Realtime System Telemetry & HUD Audio Wave Visualizer
+       ======================================================== */
+    const startTime = Date.now();
+    function updateHUDData() {
+      // Clock
+      const now = new Date();
+      document.getElementById('clockDisplay').textContent = now.toTimeString().split(' ')[0];
+
+      // Uptime
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('uptimeDisplay').textContent = `${hrs}:${mins}:${secs}`;
+    }
+    setInterval(updateHUDData, 1000);
+    updateHUDData();
+
+    // Waveform generator
+    const waveContainer = document.getElementById('waveform');
+    const bars = [];
+    for (let i = 0; i < 14; i++) {
+      const b = document.createElement('div');
+      b.className = 'w-1 bg-neutral-600 transition-all duration-100 rounded-t';
+      b.style.height = '4px';
+      waveContainer.appendChild(b);
+      bars.push(b);
+    }
+
+    setInterval(() => {
+      bars.forEach(b => {
+        const h = Math.floor(Math.random() * 18) + 3;
+        b.style.height = `${h}px`;
+        b.style.backgroundColor = h > 14 ? '#ffffff' : '#666666';
+      });
+    }, 100);
+
+    // Dynamic CPU & RAM simulation
+    setInterval(() => {
+      document.getElementById('cpuUsage').textContent = `${Math.floor(Math.random() * 12 + 6)}%`;
+      document.getElementById('memUsage').textContent = `${(Math.random() * 0.3 + 3.7).toFixed(1)} GB`;
+    }, 2000);
+
+    /* Start App Canvas on Window Load */
+    window.onload = function() {
+      renderCore();
+    };
+  </script>
+</body>
+</html>
